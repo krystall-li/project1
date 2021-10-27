@@ -19,72 +19,112 @@ tidy=TRUE, tidy.opts=list(width.cutoff=60), R.options=list(max.print=100))
 
 ## Data Wrangling, Exploration, Visualization
 
-### Name and EID here
+Krystal Li kml3695
 
 #### Introduction 
 
-Paragraph or two introducing your datasets and variables, why they are interesting to you, etc.
+I chose these data sets to work with because I am interested in the health care field, and cancer is an area that I am specifically interested in. I am also involved with an organization on campus called Texas4000, an org that engages communities around the US in the fight against cancer, culminating in a 4000 mile bike ride from Austin to Anchorage, Alaska. I am interested in how our daily lives play out in our health, and so that is why I chose to use the variables "Workout", which has data on what percent of adults who achieve at least 150 minutes a week of moderate-intensity aerobic physical activity or 75 minutes a week of vigorous-intensity aerobic physical activity and engage in muscle-strengthening activities on 2 or more days a week, "Obesity", which has data on Percent of adults aged 18 years and older who have obesity, and then the number of deaths per state, as well as the death rate (per 100,000 people). All of this data is from the year 2019. 
+
 
 ```{R}
-# read your datasets in here, e.g., with read_csv()
-
+library(tidyverse)
+cancer <- read_csv("~/project1/cancer.csv")
+obesity <- read_csv("~/project1/obesity.csv")
+physical_activity <- read_csv("~/project1/physical activity.csv")
 ```
 
 #### Tidying: Reshaping
 
-If your datasets are tidy already, demonstrate that you can reshape data with pivot wider/longer here (e.g., untidy and then retidy). Alternatively, it may be easier to wait until the wrangling section so you can reshape your summary statistics. Note here if you are going to do this.
-
-```{R}
-# your tidying code (if applicable; can also wait until wrangling section)
-```
+If your datasets are tidy already, demonstrate that you can reshape data with pivot wider/longer here (e.g., untidy and then retidy). Alternatively, it may be easier to wait until the wrangling section so you can reshape your summary statistics. 
+Reshaping summary statistics will appear in the wrangling section! 
 
     
 #### Joining/Merging
 
 ```{R}
-# your joining code
+join1 <- inner_join(obesity,physical_activity,by=c("LocationAbbr"))
 
-# your joining code
+join2 <-inner_join(join1, cancer, by=c(LocationAbbr="STATE"))
 ```
 
-Discussions of joining here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+Joining all 3 datasets here will do just that -  join the datasets together by the common variable of states. This makes one large table (with lots of columns) that contains all of the information that I am working with within the project! I did an innerjoin here, because it drops any row without a match in both datasets, and that way I can keep the States variable while joining the other data. Join1 has 153 observations of 85 variables, whereas the obesity table had 63 observations of 43 variables, and the physical activity table had also 63 observations of 43 variables.The first join ended up with a lot of NAs as the observations this is due to extraneous information about the data itself and the source in the original file. Guam and Puerto Rico were also recorded in the first join, but not in the second join due to the fact that the last data set only had the 50 states listed. Across the row, the unique IDs are still the same as before, including but not limited to ID, Year Start, Year End, Question, Data Value, Stratification Category, etc. Alot of these variables only have NA recorded, and thus will be removed in the next step. The columns that are no longer there are the Location by Abbreviation column, as it is now merged and sorted by that. The second join (join2) was an innerjoin again with the first join to the cancer table, and it is also merged by the common factor of location abbreviation or state. This data set has 50 observations of 89 variables, whereas the cancer table had 50 observations of 5 variables, and join1 had 152 observations of 85 variables.The 50 observations are the 50 states, and the 89 variables are the 85 from the previous join and the 4 other columns from the cancer dataset besides "states". 
 
 ####  Wrangling
 
 ```{R}
-# your wrangling code
-
-# your wrangling code
-
-# your wrangling code
+all_na <- function(x) any(!is.na(x))
+alljoined<-join2 %>% select_if(all_na)
+alljoined <-alljoined %>% select(LocationAbbr,Data_Value.x,Data_Value.y,RATE,DEATHS)
+alljoined <-alljoined %>% select(State=LocationAbbr,Workout=Data_Value.x, Obese=Data_Value.y,deathrate=RATE,deaths=DEATHS)
+alljoined <-alljoined %>% mutate(obese_hilo=ifelse(Obese>mean(Obese),"high","low"))
+alljoined <-alljoined %>% mutate(workout_hilo=ifelse(Workout>mean(Workout),"high","low"))
 ```
 
-Your discussion of wrangling section here. Feel encouraged to break up into more than once code chunk and discuss each in turn.
+Above codes are to "clean" up the dataset, by removing any NA columns as well as values (there were no values in the columns that were kept that had NA values, but there were 39 columns that only contained NA values). I then selected the columns that I wanted to work with, which did not include columns such as data source or confidence limits - I just wanted the percentage for the questions answered. I then changed the names of the columns so that they were easier to understand and interpret, and then mutated 2 columns (obesity and workout) to include a categorical variable based on whether the data was "high" or "low", depending on the mean across all samples.
 
+```{R}
+alljoined %>% group_by(obese_hilo) %>% summarize_at(c("Workout","deathrate"),.funs=list(mean,sd)) %>% pivot_longer(-1) %>% separate(name,into=c("var","stat")) %>% pivot_wider(names_from='var',values_from='value')
+```
+
+The above is to demonstrate tidying abilities from the tidying section! I pulled the mean and standard deviation from the variables workout and death rate, grouped by whether there is a high obesity rate or not within each state. Unsurprisingly, the workout rate is higher in the states that have a lower obesity rate (an obesity rate that is lower than the average across all states). However, the death rate is higher in those states that have a higher workout rate. There could be many other variables in play, such as access to health care and other lifestyle variables, as well as environment.  
+
+```{R}
+alljoined %>% filter(workout_hilo=='low') %>% arrange(desc(deaths))
+alljoined %>% filter((Workout<25) & (Obese>17))
+```
+
+There are just some more statistics that I thought would be interesting to look at, seeing which states have low workout rates with the highest number of deaths from cancer (California, Florida, New York, Illinois, etc.). I also wanted to see which state had a lower workout rate and a higher obesity rate, and that turned out to be just Colorado (which was surprising to me). 
+
+```{R}
+alljoined %>% summarize_if(is.numeric,list(mean=mean,sd=sd,min=min,max=max,distinct=n_distinct))%>% pivot_longer(contains("_")) %>% separate(name,into=c("var","stat")) %>% arrange(var) %>% knitr::kable()
+alljoined %>% summary(is.numeric)
+alljoined %>% group_by(obese_hilo) %>% summarize(n=n())
+alljoined %>% group_by(workout_hilo) %>% summarize(n=n())
+alljoined %>% group_by(workout_hilo, obese_hilo) %>% tally() 
+
+```
+These demonstrate a summary of various statistics run on the variables in my data set. I found the mean, standard deviation, minimum value, maximum value, as well as distinct answers for each numerical variable, and then summarized the numbers of "highs" and "lows" in each categorical variable. I also thought it would be interesting to see how many states have both high, both low, or a high and a low for the categorical data, so that is shown in the last line. It was very interesting that only 18 states have a high workout rate and a low obesity rate - I feel like especially recently healthy lifestyles have been on the rise, so that is an interesting statistic. 
 
 #### Visualizing
 
 ```{R}
-# your plot 1
+alljoined %>% ggplot(aes(x=Obese, y=Workout))+
+ggtitle("Working Out VS Obesity Rates")+
+geom_point(color="magenta") + geom_smooth(method = "lm", color="orange")+
+labs(x="Obesity Rates",y="Workout Percentages")+
+theme_minimal()+
+scale_x_continuous(n.breaks=10)
 ```
 
-Your discussion of plot 1
+This ggplot demonstrates the relationship between obesity rates across the 50 states and the workout percentages. There seems to be a correlation between the two, as highlighted by the points, as well as the linear regression running through the plot. Unsurprisingly, as obesity rates increase, the workout percentage in each state is decreasing. Similarly, the larger the percentage of people in each state that workout, the lower the obesity rate. There are some states however to be anomalies, with lower percentages of people that workout with higher obesity rates - I think that this could be due to environmental reasons. 
 
 ```{R}
-# your plot 2
+alljoined %>% ggplot(aes(x=deathrate, y=Obese))+
+ggtitle("Obesity Levels compared to Death Rate")+
+geom_boxplot()+
+geom_jitter(alpha=.5, aes(color=obese_hilo))+
+labs(x="Death Rate",y="Obesity Rates",color="Obesity Levels")+
+theme_light()+
+scale_y_continuous(n.breaks=10)
 ```
 
-Your discussion of plot 2
+This boxplot demonstrates the relationship between obesity rates and the death rate in the 50 states. I added an overlay that shows the obesity levels (the categorical variables of high obesity level or low obesity level) that demonstrate that again. Surprisingly, this boxplot shows that where there is a higher obesity rate, there is a lower death rate, and where there is a higher obesity rate, there is a lower death rate. This is extremely surprising, as I would have thought that it would have been the other way. The graph also demonstrates the mean of the death rate across all 50 states, as well as the median and quartiles of the obesity rates. 
 
 ```{R}
-# your plot 3
+alljoined %>% ggplot(aes(obese_hilo,deathrate))+
+geom_bar(aes(fill=obese_hilo),stat="summary",fun=mean)+
+labs(x="Obesity Level",y="Death Rate",color="Workout Level",fill="Obesity Levels")+
+ggtitle("Death Rate vs Obesity Level")+
+geom_jitter(alpha=.5,aes(color=workout_hilo))+
+geom_errorbar(stat="summary",fun.data=mean_se,width=0.4)+
+theme_minimal()
 ```
 
-Your discussion of plot 3
+This bar graph shows the difference between death rates regarding the obesity levels (high/low) across the United States. I then added a geom jitter over with the workout levels, which shows the relationship between the workout levels (high/low) with the obesity and death rates. This plot demonstrates that there is a significantly higher death rate (surprisingly) in states with a lower obesity level. In addition, the plot demonstrates that more frequently, a lower workout level (lower percentage of people who workout in each state) is associated with a higher obesity level, and a higher workout level (higher percentage of people who workout in each state) is associated more frequently with a lower obesity level. 
 
 #### Concluding Remarks
 
-If any!
+Cancer is something that I am extremely passionate about, and one day hope to live to see it abolished. For the time being, I am doing what I can to educate myself and others about this field and how important knowledge is about the disease. This data showed me a lot of information that I was expecting, but also information that I was not expecting, building my knowledge on cancer frequencies across the 50 states as a whole.
 
 
 
